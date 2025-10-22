@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+
+{% block title %}WB Analytics - Панель управления{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Заголовок -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    Панель управления
+                </h2>
+                <p class="text-muted mb-0">
+                    Номер телефона: {{ session.phone }}
+                </p>
+            </div>
+            <div>
+                <button class="btn btn-outline-primary" onclick="refreshProducts()">
+                    <i class="fas fa-sync-alt me-2"></i>
+                    Обновить
+                </button>
+                <button class="btn btn-success" onclick="exportData()">
+                    <i class="fas fa-download me-2"></i>
+                    Экспорт
+                </button>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Всего товаров</h6>
+                                <h3 id="totalProducts">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-box fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">В наличии</h6>
+                                <h3 id="inStockProducts">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-check-circle fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Средняя цена</h6>
+                                <h3 id="avgPrice">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-ruble-sign fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Общие продажи</h6>
+                                <h3 id="totalSales">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-chart-line fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Фильтры и поиск -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="searchInput" class="form-label">
+                            <i class="fas fa-search me-1"></i>
+                            Поиск товаров
+                        </label>
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            id="searchInput" 
+                            placeholder="Название или артикул"
+                        >
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label">
+                            <i class="fas fa-filter me-1"></i>
+                            Категория
+                        </label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">Все категории</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="brandFilter" class="form-label">
+                            <i class="fas fa-tag me-1"></i>
+                            Бренд
+                        </label>
+                        <select class="form-select" id="brandFilter">
+                            <option value="">Все бренды</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <label for="stockFilter" class="form-label">
+                            <i class="fas fa-boxes me-1"></i>
+                            Остаток
+                        </label>
+                        <select class="form-select" id="stockFilter">
+                            <option value="">Все</option>
+                            <option value="in_stock">В наличии</option>
+                            <option value="low_stock">Мало</option>
+                            <option value="out_of_stock">Нет в наличии</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Таблица товаров -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Список товаров
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <!-- Загрузка -->
+                <div id="loadingProducts" class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Загрузка товаров...</p>
+                </div>
+
+                <!-- Таблица -->
+                <div id="productsTable" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Артикул</th>
+                                    <th>Название</th>
+                                    <th>Цена</th>
+                                    <th>Старая цена</th>
+                                    <th>Скидка</th>
+                                    <th>Остаток</th>
+                                    <th>Продажи</th>
+                                    <th>Рейтинг</th>
+                                    <th>Отзывы</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Пустое состояние -->
+                <div id="emptyProducts" class="text-center p-5" style="display: none;">
+                    <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Товары не найдены</h5>
+                    <p class="text-muted">Попробуйте изменить фильтры или обновить данные</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для детальной информации -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Информация о товаре
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="productModalBody">
+                <!-- Контент будет загружен динамически -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Закрыть
+                </button>
+                <a href="#" class="btn btn-primary" id="productModalLink" target="_blank">
+                    <i class="fas fa-external-link-alt me-2"></i>
+                    Открыть на Wildberries
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allProducts = [];
+let filteredProducts = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadProducts();
+    setupFilters();
+});
+
+// Загрузка товаров
+async function loadProducts() {
+    const loadingDiv = document.getElementById('loadingProducts');
+    const tableDiv = document.getElementById('productsTable');
+    const emptyDiv = document.getElementById('emptyProducts');
+    
+    loadingDiv.style.display = 'block';
+    tableDiv.style.display = 'none';
+    emptyDiv.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/products?limit=100');
+        const result = await response.json();
+
+        if (result.success) {
+            allProducts = result.products;
+            filteredProducts = [...allProducts];
+            
+            updateStatistics();
+            updateFilters();
+            renderProducts();
+            
+            loadingDiv.style.display = 'none';
+            tableDiv.style.display = 'block';
+        } else {
+            throw new Error(result.message || 'Ошибка загрузки товаров');
+        }
+    } catch (error) {
+        loadingDiv.style.display = 'none';
+        emptyDiv.style.display = 'block';
+        showAlert('Ошибка загрузки товаров: ' + error.message, 'danger');
+    }
+}
+
+// Обновление статистики
+function updateStatistics() {
+    const totalProducts = allProducts.length;
+    const inStockProducts = allProducts.filter(p => p.stock > 0).length;
+    const avgPrice = allProducts.length > 0 
+        ? allProducts.reduce((sum, p) => sum + p.price, 0) / allProducts.length 
+        : 0;
+    const totalSales = allProducts.reduce((sum, p) => sum + (p.sales || 0), 0);
+
+    document.getElementById('totalProducts').textContent = formatNumber(totalProducts);
+    document.getElementById('inStockProducts').textContent = formatNumber(inStockProducts);
+    document.getElementById('avgPrice').textContent = formatPrice(avgPrice);
+    document.getElementById('totalSales').textContent = formatNumber(totalSales);
+}
+
+// Обновление фильтров
+function updateFilters() {
+    const categories = [...new Set(allProducts.map(p => p.category).filter(Boolean))];
+    const brands = [...new Set(allProducts.map(p => p.brand).filter(Boolean))];
+
+    const categorySelect = document.getElementById('categoryFilter');
+    const brandSelect = document.getElementById('brandFilter');
+
+    // Очищаем и заполняем категории
+    categorySelect.innerHTML = '<option value="">Все категории</option>';
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        categorySelect.appendChild(option);
+    });
+
+    // Очищаем и заполняем бренды
+    brandSelect.innerHTML = '<option value="">Все бренды</option>';
+    brands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand;
+        option.textContent = brand;
+        brandSelect.appendChild(option);
+    });
+}
+
+// Настройка фильтров
+function setupFilters() {
+    const searchInput = document.getElementById('searchInput');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const brandFilter = document.getElementById('brandFilter');
+    const stockFilter = document.getElementById('stockFilter');
+
+    [searchInput, categoryFilter, brandFilter, stockFilter].forEach(element => {
+        element.addEventListener('change', applyFilters);
+    });
+}
+
+// Применение фильтров
+function applyFilters() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const brandFilter = document.getElementById('brandFilter').value;
+    const stockFilter = document.getElementById('stockFilter').value;
+
+    filteredProducts = allProducts.filter(product => {
+        // Поиск по названию и артикулу
+        const matchesSearch = !searchTerm || 
+            product.name.toLowerCase().includes(searchTerm) ||
+            product.article.includes(searchTerm);
+
+        // Фильтр по категории
+        const matchesCategory = !categoryFilter || product.category === categoryFilter;
+
+        // Фильтр по бренду
+        const matchesBrand = !brandFilter || product.brand === brandFilter;
+
+        // Фильтр по остатку
+        let matchesStock = true;
+        if (stockFilter) {
+            switch (stockFilter) {
+                case 'in_stock':
+                    matchesStock = product.stock > 0;
+                    break;
+                case 'low_stock':
+                    matchesStock = product.stock > 0 && product.stock <= 10;
+                    break;
+                case 'out_of_stock':
+                    matchesStock = product.stock === 0;
+                    break;
+            }
+        }
+
+        return matchesSearch && matchesCategory && matchesBrand && matchesStock;
+    });
+
+    renderProducts();
+}
+
+// Отображение товаров
+function renderProducts() {
+    const tbody = document.getElementById('productsTableBody');
+    const emptyDiv = document.getElementById('emptyProducts');
+    const tableDiv = document.getElementById('productsTable');
+
+    if (filteredProducts.length === 0) {
+        tableDiv.style.display = 'none';
+        emptyDiv.style.display = 'block';
+        return;
+    }
+
+    tableDiv.style.display = 'block';
+    emptyDiv.style.display = 'none';
+
+    tbody.innerHTML = filteredProducts.map(product => `
+        <tr>
+            <td>
+                <code>${product.article}</code>
+            </td>
+            <td>
+                <div class="text-truncate" style="max-width: 200px;" title="${product.name}">
+                    ${product.name}
+                </div>
+                ${product.brand ? `<small class="text-muted">${product.brand}</small>` : ''}
+            </td>
+            <td>
+                <strong class="text-success">${formatPrice(product.price)}</strong>
+            </td>
+            <td>
+                ${product.old_price ? `<span class="text-muted">${formatPrice(product.old_price)}</span>` : '-'}
+            </td>
+            <td>
+                ${product.discount ? `<span class="badge bg-danger">${product.discount}%</span>` : '-'}
+            </td>
+            <td>
+                <span class="badge ${product.stock > 0 ? 'bg-success' : 'bg-danger'}">
+                    ${formatNumber(product.stock || 0)}
+                </span>
+            </td>
+            <td>
+                ${product.sales ? formatNumber(product.sales) : '-'}
+            </td>
+            <td>
+                ${product.rating ? `<span class="text-warning">${product.rating}</span>` : '-'}
+            </td>
+            <td>
+                ${product.reviews_count ? formatNumber(product.reviews_count) : '-'}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="showProductDetails('${product.article}')">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Показать детали товара
+async function showProductDetails(article) {
+    try {
+        const response = await fetch(`/api/product/${article}`);
+        const result = await response.json();
+
+        if (result.success) {
+            const product = result.product;
+            const modalBody = document.getElementById('productModalBody');
+            const modalLink = document.getElementById('productModalLink');
+
+            modalBody.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Основная информация</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Артикул:</strong></td><td><code>${product.article}</code></td></tr>
+                            <tr><td><strong>Название:</strong></td><td>${product.name}</td></tr>
+                            <tr><td><strong>Бренд:</strong></td><td>${product.brand || '-'}</td></tr>
+                            <tr><td><strong>Категория:</strong></td><td>${product.category || '-'}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Цены и продажи</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Цена:</strong></td><td class="text-success">${formatPrice(product.price)}</td></tr>
+                            <tr><td><strong>Старая цена:</strong></td><td>${product.old_price ? formatPrice(product.old_price) : '-'}</td></tr>
+                            <tr><td><strong>Скидка:</strong></td><td>${product.discount ? product.discount + '%' : '-'}</td></tr>
+                            <tr><td><strong>Остаток:</strong></td><td>${formatNumber(product.stock || 0)}</td></tr>
+                            <tr><td><strong>Продажи:</strong></td><td>${product.sales ? formatNumber(product.sales) : '-'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <h6>Рейтинги</h6>
+                        <table class="table table-sm">
+                            <tr><td><strong>Рейтинг:</strong></td><td>${product.rating ? product.rating + ' ⭐' : '-'}</td></tr>
+                            <tr><td><strong>Отзывов:</strong></td><td>${product.reviews_count ? formatNumber(product.reviews_count) : '-'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            modalLink.href = product.url;
+            
+            const modal = new bootstrap.Modal(document.getElementById('productModal'));
+            modal.show();
+        } else {
+            showAlert('Ошибка загрузки информации о товаре', 'danger');
+        }
+    } catch (error) {
+        showAlert('Ошибка загрузки информации о товаре', 'danger');
+    }
+}
+
+// Обновить товары
+function refreshProducts() {
+    loadProducts();
+}
+
+// Экспорт данных
+function exportData() {
+    if (filteredProducts.length === 0) {
+        showAlert('Нет данных для экспорта', 'warning');
+        return;
+    }
+
+    // Создаем CSV
+    const headers = ['Артикул', 'Название', 'Цена', 'Старая цена', 'Скидка', 'Остаток', 'Продажи', 'Рейтинг', 'Отзывы', 'Бренд', 'Категория', 'URL'];
+    const csvContent = [
+        headers.join(','),
+        ...filteredProducts.map(product => [
+            product.article,
+            `"${product.name}"`,
+            product.price,
+            product.old_price || '',
+            product.discount || '',
+            product.stock || 0,
+            product.sales || 0,
+            product.rating || '',
+            product.reviews_count || 0,
+            `"${product.brand || ''}"`,
+            `"${product.category || ''}"`,
+            product.url
+        ].join(','))
+    ].join('\n');
+
+    // Скачиваем файл
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `wb_products_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showAlert('Данные экспортированы в CSV файл', 'success');
+}
+</script>
+{% endblock %}

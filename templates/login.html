@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}WB Analytics - Авторизация{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <h3 class="card-title text-danger">
+                        <i class="fas fa-mobile-alt me-2"></i>
+                        SMS Авторизация
+                    </h3>
+                    <p class="text-muted">
+                        Введите номер телефона для получения SMS кода
+                    </p>
+                </div>
+
+                <!-- Форма авторизации -->
+                <form id="authForm">
+                    <!-- Номер телефона -->
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">
+                            <i class="fas fa-phone me-1"></i>
+                            Номер телефона
+                        </label>
+                        <input 
+                            type="tel" 
+                            class="form-control" 
+                            id="phone" 
+                            name="phone"
+                            placeholder="+7 (926) 484-58-50"
+                            value="+79264845850"
+                            required
+                        >
+                        <div class="form-text">
+                            Введите номер телефона в международном формате
+                        </div>
+                    </div>
+
+                    <!-- SMS код (скрыт изначально) -->
+                    <div class="mb-3" id="smsCodeGroup" style="display: none;">
+                        <label for="smsCode" class="form-label">
+                            <i class="fas fa-key me-1"></i>
+                            SMS код
+                        </label>
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            id="smsCode" 
+                            name="smsCode"
+                            placeholder="Введите код из SMS"
+                            maxlength="6"
+                        >
+                        <div class="form-text">
+                            Код придет на указанный номер телефона
+                        </div>
+                    </div>
+
+                    <!-- Кнопки -->
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <span class="btn-text">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Отправить SMS код
+                            </span>
+                            <span class="loading">
+                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                Отправка...
+                            </span>
+                        </button>
+                        
+                        <button type="button" class="btn btn-outline-secondary" id="backBtn" style="display: none;">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            Назад
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Информация -->
+                <div class="mt-4">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Как это работает:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Введите номер телефона</li>
+                            <li>Нажмите "Отправить SMS код"</li>
+                            <li>Введите код из SMS сообщения</li>
+                            <li>Нажмите "Подтвердить"</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ссылка на главную -->
+        <div class="text-center mt-3">
+            <a href="{{ url_for('index') }}" class="text-decoration-none">
+                <i class="fas fa-arrow-left me-1"></i>
+                Вернуться на главную
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('authForm');
+    const phoneInput = document.getElementById('phone');
+    const smsCodeInput = document.getElementById('smsCode');
+    const smsCodeGroup = document.getElementById('smsCodeGroup');
+    const submitBtn = document.getElementById('submitBtn');
+    const backBtn = document.getElementById('backBtn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    
+    let isSmsSent = false;
+    let phoneNumber = '';
+
+    // Форматирование номера телефона
+    phoneInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        
+        if (value.startsWith('8')) {
+            value = '7' + value.slice(1);
+        }
+        
+        if (value.startsWith('7')) {
+            value = '+' + value;
+        } else if (value && !value.startsWith('+')) {
+            value = '+7' + value;
+        }
+        
+        e.target.value = value;
+    });
+
+    // Обработка отправки формы
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!isSmsSent) {
+            sendSmsCode();
+        } else {
+            verifySmsCode();
+        }
+    });
+
+    // Кнопка "Назад"
+    backBtn.addEventListener('click', function() {
+        isSmsSent = false;
+        smsCodeGroup.style.display = 'none';
+        backBtn.style.display = 'none';
+        btnText.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Отправить SMS код';
+        smsCodeInput.value = '';
+    });
+
+    // Отправка SMS кода
+    async function sendSmsCode() {
+        phoneNumber = phoneInput.value.trim();
+        
+        if (!phoneNumber) {
+            showAlert('Введите номер телефона', 'danger');
+            return;
+        }
+
+        // Проверка формата номера
+        const phoneRegex = /^\+7\d{10}$/;
+        if (!phoneRegex.test(phoneNumber)) {
+            showAlert('Введите корректный номер телефона', 'danger');
+            return;
+        }
+
+        showLoading(submitBtn);
+
+        try {
+            const response = await fetch('/api/send-sms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    phone: phoneNumber
+                })
+            });
+
+            const result = await response.json();
+            hideLoading(submitBtn);
+
+            if (result.success) {
+                isSmsSent = true;
+                smsCodeGroup.style.display = 'block';
+                backBtn.style.display = 'block';
+                btnText.innerHTML = '<i class="fas fa-check me-2"></i>Подтвердить';
+                phoneInput.disabled = true;
+                smsCodeInput.focus();
+                
+                showAlert('SMS код отправлен на номер ' + phoneNumber, 'success');
+            } else {
+                showAlert(result.message || 'Ошибка отправки SMS кода', 'danger');
+            }
+        } catch (error) {
+            hideLoading(submitBtn);
+            showAlert('Ошибка соединения с сервером', 'danger');
+            console.error('Error:', error);
+        }
+    }
+
+    // Проверка SMS кода
+    async function verifySmsCode() {
+        const smsCode = smsCodeInput.value.trim();
+        
+        if (!smsCode) {
+            showAlert('Введите SMS код', 'danger');
+            return;
+        }
+
+        if (smsCode.length < 4) {
+            showAlert('SMS код слишком короткий', 'danger');
+            return;
+        }
+
+        showLoading(submitBtn);
+
+        try {
+            const response = await fetch('/api/verify-sms', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    code: smsCode
+                })
+            });
+
+            const result = await response.json();
+            hideLoading(submitBtn);
+
+            if (result.success) {
+                showAlert('Авторизация успешна! Переход в панель управления...', 'success');
+                
+                // Переход в панель управления через 2 секунды
+                setTimeout(() => {
+                    window.location.href = '{{ url_for("dashboard") }}';
+                }, 2000);
+            } else {
+                showAlert(result.message || 'Неверный SMS код', 'danger');
+                smsCodeInput.focus();
+            }
+        } catch (error) {
+            hideLoading(submitBtn);
+            showAlert('Ошибка соединения с сервером', 'danger');
+            console.error('Error:', error);
+        }
+    }
+});
+</script>
+{% endblock %}
